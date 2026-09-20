@@ -108,37 +108,122 @@ export class Coverage {
       Function(func) {
         // 1. Visit `params` first: default values may contain statements and
         //    branches (see `AssignmentPattern`).
+        for (const p of func.params)
+          walk.recursive(p, null, visitor);
+
         // 2. Issue a function id and record `Range.fromNode(code, func)`.
+        const fid = fcount++;
+        funcTarget[fid] = Range.fromNode(code, func);
+        
         // 3. If `body` is a `BlockStatement`, instrument its statements and
         //    prepend `__cov__.func.add(<id>);`.
+        if (func.body.type === 'BlockStatement')
+        {
+          func.body.body = walkStmts(func.body.body);
+          func.body = prependStmt(createStmt( `__cov__.func.add(${fid});`), func.body);
+        }
         // 4. Otherwise `body` is an expression (arrow function): replace it by
         //    `{ __cov__.func.add(<id>); __cov__.stmt.add(<sid>); return <body>; }`
         //    and set `func.expression = false`.
-        todo("Function");
+        else
+        {
+
+        }
+        // todo("Function");
       },
       VariableDeclaration(decl) {
-        todo("VariableDeclaration");
+        for (const p of decl.declarations)
+        {
+          if (!p.init) 
+            continue;
+          const sid = scount++;
+          stmtTarget[sid] = Range.fromNode(code, p.init);
+          walk.recursive(p, null ,visitor);
+          p.init = createSeqExpr([
+            createExpr(`__cov__.stmt.add(${sid})`), p.init
+          ]);
+        }
+        // todo("VariableDeclaration");
       },
       AssignmentPattern(pattern) {
-        todo("AssignmentPattern");
+        const sid = scount++;
+        stmtTarget[sid] = Range.fromNode(code, pattern.right);
+        walk.recursive(pattern.right, null, visitor);
+        pattern.right = createSeqExpr([
+          createExpr(`__cov__.stmt.add(${sid})`), pattern.right
+        ]);
+        // todo("AssignmentPattern");
       },
       BlockStatement(node) {
-        todo("BlockStatement");
+        node.body = walkStmts(node.body);
+        // todo("BlockStatement");
       },
       SwitchStatement(stmt) {
         todo("SwitchStatement");
       },
       StaticBlock(node) {
-        todo("StaticBlock");
+        node.body = walkStmts(node.body);
+        // todo("StaticBlock");
       },
       IfStatement(stmt) {
-        todo("IfStatement");
-      },
-      ConditionalExpression(expr) {
-        todo("ConditionalExpression");
+        walk.recursive(stmt.test, null, visitor);
+
+        stmt.consequent = toBlockStmt(stmt.consequent);
+        walk.recursive(stmt.consequent, null, visitor);
+        const bid = bcount++;
+        branchTarget[bid] = Range.fromNode(code, stmt.consequent);
+        stmt.consequent = prependStmt(createStmt(`__cov__.branch.add(${bid})`), stmt.consequent);
+        
+        if (stmt.alternate)
+        {
+          stmt.alternate = toBlockStmt(stmt.alternate);
+          walk.recursive(stmt.alternate, null, visitor);
+          const bid = bcount++;
+          branchTarget[bid] = Range.fromNode(code, stmt.alternate);
+          stmt.alternate = prependStmt(createStmt(`__cov__.branch.add(${bid})`), stmt.alternate);
+        }
+        else
+          {
+            const bid = bcount++;
+            branchTarget[bid] = Range.fromCode(code, stmt.end, stmt.end);
+            stmt.alternate = createBlockStmt([createStmt(`__cov__.branch.add(${bid});`)]);
+          }
+          // todo("IfStatement");
+        },
+        ConditionalExpression(expr) {
+          walk.recursive(expr.test, null, visitor);
+          const bid = bcount++;
+          // branchTarget[bid] = Range.fromNode(code, expr.test);
+          
+          walk.recursive(expr.consequent, null, visitor);
+          const bid2 = bcount++;
+          branchTarget[bid2] = Range.fromNode(code, expr.consequent);
+          expr.consequent = createSeqExpr([createExpr(`__cov__.branch.add(${bid2})`), expr.consequent]);;
+
+          walk.recursive(expr.alternate, null, visitor);
+          const bid3 = bcount++;
+          branchTarget[bid3] = Range.fromNode(code, expr.alternate);
+          expr.alternate = createSeqExpr([createExpr(`__cov__.branch.add(${bid3})`), expr.alternate]);
+
+        // todo("ConditionalExpression");
       },
       LogicalExpression(node) {
-        todo("LogicalExpression");
+        walk.recursive(node.left, null, visitor);
+        if (node.left.type != "LogicalExpression")
+        {
+          const bid = bcount++;
+          branchTarget[bid] = Range.fromNode(code, node.left);
+          node.left = createSeqExpr([createExpr(`__cov__.branch.add(${bid})`), node.left]);
+        }  
+        walk.recursive(node.right, null, visitor);
+        if (node.right.type != "LogicalExpression")
+        {
+          const bid = bcount++;
+          branchTarget[bid] = Range.fromNode(code, node.right);
+          node.right = createSeqExpr([createExpr(`__cov__.branch.add(${bid})`), node.right]);
+        }  
+
+        // todo("LogicalExpression");
       },
       LabeledStatement(node) {
         // Keep the label directly on a loop body: `continue label;` is illegal
@@ -146,19 +231,35 @@ export class Coverage {
         todo("LabeledStatement");
       },
       WhileStatement(node) {
-        todo("WhileStatement");
+        node.body = toBlockStmt(node.body);
+        walk.recursive(node.body, null, visitor);
+        // todo("WhileStatement");
       },
       DoWhileStatement(node) {
-        todo("DoWhileStatement");
+        node.body = toBlockStmt(node.body);
+        walk.recursive(node.body, null, visitor);
+        // todo("DoWhileStatement");
       },
       ForStatement(node) {
-        todo("ForStatement");
+        if (node.init)
+          walk.recursive(node.init, null, visitor);
+        if (node.test)
+          walk.recursive(node.test, null, visitor);
+        if (node.update)
+          walk.recursive(node.update, null, visitor);
+        node.body = toBlockStmt(node.body);
+        walk.recursive(node.body, null, visitor);
+        // todo("ForStatement");
       },
       ForInStatement(node) {
-        todo("ForInStatement");
+        node.body = toBlockStmt(node.body);
+        walk.recursive(node.body, null, visitor);
+        // todo("ForInStatement");
       },
       ForOfStatement(node) {
-        todo("ForOfStatement");
+        node.body = toBlockStmt(node.body);
+        walk.recursive(node.body, null, visitor);
+        // todo("ForOfStatement");
       },
     }
 
