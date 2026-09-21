@@ -127,18 +127,27 @@ export class Coverage {
         //    and set `func.expression = false`.
         else
         {
-
+          walk.recursive(func.body, null, visitor);
+          const sid = scount++;
+          stmtTarget[sid] = Range.fromNode(code, func.body);
+          func.body = createBlockStmt([
+            createStmt(`__cov__.func.add(${fid})`),
+            createStmt(`__cov__.stmt.add(${sid})`),
+            createReturnStmt(func.body)
+          ]);
+          func.expression = false;
         }
         // todo("Function");
       },
       VariableDeclaration(decl) {
         for (const p of decl.declarations)
         {
-          if (!p.init) 
+          walk.recursive(p, null ,visitor);
+          if (!p.init)
             continue;
           const sid = scount++;
           stmtTarget[sid] = Range.fromNode(code, p.init);
-          walk.recursive(p, null ,visitor);
+          // walk.recursive(p.id, null, visitor);
           p.init = createSeqExpr([
             createExpr(`__cov__.stmt.add(${sid})`), p.init
           ]);
@@ -146,12 +155,19 @@ export class Coverage {
         // todo("VariableDeclaration");
       },
       AssignmentPattern(pattern) {
+        walk.recursive(pattern.right, null, visitor);
         const sid = scount++;
         stmtTarget[sid] = Range.fromNode(code, pattern.right);
-        walk.recursive(pattern.right, null, visitor);
         pattern.right = createSeqExpr([
           createExpr(`__cov__.stmt.add(${sid})`), pattern.right
         ]);
+        
+        walk.recursive(pattern.left, null, visitor);
+        // const sid2 = scount++;
+        // stmtTarget[sid2] = Range.fromNode(code, pattern.left);
+        // pattern.left = createSeqExpr([
+        //   createExpr(`__cov__.stmt.add(${sid})`), pattern.left
+        // ]);
         // todo("AssignmentPattern");
       },
       BlockStatement(node) {
@@ -159,7 +175,27 @@ export class Coverage {
         // todo("BlockStatement");
       },
       SwitchStatement(stmt) {
-        todo("SwitchStatement");
+        walk.recursive(stmt.discriminant, null, visitor);
+        for (const c of stmt.cases)
+        {
+          // walk.recursive(c, null, visitor);
+          c.consequent = walkStmts(c.consequent);
+
+          if (c.test)
+            walk.recursive(c.test, null, visitor);
+
+          const bid = bcount++;
+          branchTarget[bid] = Range.fromNode(code, c);
+          c.consequent.unshift(createStmt(`__cov__.branch.add(${bid})`));
+          // const sid = scount++;
+          // branchTarget[sid] = Range.fromNode(code, c);
+          // for (const cons of c.consequent)
+          // {
+          //   cons = prependStmt(createStmt(`__cov__.branch.add(${bid})`), cons);
+          // }
+        }
+
+        // todo("SwitchStatement");
       },
       StaticBlock(node) {
         node.body = walkStmts(node.body);
@@ -228,14 +264,18 @@ export class Coverage {
       LabeledStatement(node) {
         // Keep the label directly on a loop body: `continue label;` is illegal
         // when `label` labels a block.
-        todo("LabeledStatement");
+        walk.recursive(node.body, null, visitor);
+        // todo("LabeledStatement");
       },
       WhileStatement(node) {
+        walk.recursive(node.test, null, visitor);
+        
         node.body = toBlockStmt(node.body);
         walk.recursive(node.body, null, visitor);
         // todo("WhileStatement");
       },
       DoWhileStatement(node) {
+        walk.recursive(node.test, null, visitor);
         node.body = toBlockStmt(node.body);
         walk.recursive(node.body, null, visitor);
         // todo("DoWhileStatement");
@@ -257,8 +297,16 @@ export class Coverage {
         // todo("ForInStatement");
       },
       ForOfStatement(node) {
+        // if (node.init)
+        //   walk.recursive(node.init, null, visitor);
+        if (node.left)
+          walk.recursive(node.left, null, visitor);
+        if (node.right)
+          walk.recursive(node.right, null, visitor);
         node.body = toBlockStmt(node.body);
         walk.recursive(node.body, null, visitor);
+        // node.body = toBlockStmt(node.body);
+        // walk.recursive(node.body, null, visitor);
         // todo("ForOfStatement");
       },
     }

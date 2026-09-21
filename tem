@@ -1,0 +1,23 @@
+function defaults(kind, input) {
+  __cov__.func.add(0);
+  const {x = (__cov__.stmt.add(1), 1), y: {z = 2} = (__cov__.stmt.add(2), {}), ...others} = (__cov__.stmt.add(0), input);
+  const [p = (__cov__.stmt.add(4), 10), , q = (__cov__.stmt.add(5), 20)] = (__cov__.stmt.add(3), kind === "arr" ? (__cov__.branch.add(1), input) : (__cov__.branch.add(2), []));
+  let r;
+  var s, t = (__cov__.stmt.add(6), x + z);
+  __cov__.stmt.add(7);
+  for (const [k = "none"] of [[], ["k"]]) {
+    __cov__.stmt.add(8);
+    r = k;
+  }
+  function f({a = p, b = q} = (__cov__.stmt.add(9), {}), [c = 3] = (__cov__.stmt.add(10), [])) {
+    __cov__.func.add(1);
+    __cov__.stmt.add(11);
+    return a + b + c;
+  }
+  __cov__.stmt.add(12);
+  return kind === "arr" ? (__cov__.branch.add(4), f()) : (__cov__.branch.add(5), f({
+    a: 1,
+    b: 2
+  }, [4]) + t + r);
+}
+
